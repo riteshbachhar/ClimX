@@ -12,6 +12,7 @@ preprocessing_data_lite/
 results_lite/
 results_full/
 models_lite/
+jobs/logs/
 
 # C extensions
 *.so
