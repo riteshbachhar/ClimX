@@ -5,7 +5,10 @@ the forcings of the full dataset reads a few GB rather than the whole 164 GB.
 
 Usage:
     python check_negatives.py <data_dir>             # forcing variables only
-    python check_negatives.py <data_dir> --targets   # also pr, huss, sfcWind (reads the large daily arrays)
+    python check_negatives.py <data_dir> --targets   # also all 7 daily target variables (reads the large arrays)
+
+All target variables are physically non-negative (temperatures are in K, pressure in Pa),
+so any negative value in any of them indicates a data problem.
 """
 import os
 import sys
@@ -21,7 +24,12 @@ import xarray as xr
 FORCINGS = ["CO2_LBC", "N2O_LBC", "CH4_LBC", "CFC11eq_LBC", "CF2CL2_LBC",
             "BC_AX", "BC_N", "SO2", "SO4_PR", "OM_NI"]
 AEROSOLS = {"BC_AX", "BC_N", "SO2", "SO4_PR", "OM_NI"}
-TARGETS_NONNEG = ["pr", "huss", "sfcWind"]  # targets that must physically be >= 0
+TARGETS = ["tas", "tasmax", "tasmin", "pr", "huss", "psl", "sfcWind"]
+
+# The files store one map per time step (storage chunk 1 x 1 x lat x lon). Reading one map per
+# dask task would create ~31,000 tasks per daily variable, so group several steps per chunk instead.
+# These sizes are multiples of the storage chunk (aligned) and ~80 MB per chunk at full resolution.
+CHUNKS = {"time": 365, "time_month": 120, "time_year": -1}
 
 
 def main():
@@ -42,8 +50,8 @@ def main():
 
     total_negatives = total_nonfinite = 0
     for path in files:
-        with xr.open_dataset(path, chunks={}) as ds:  # lazy; use the file's own chunking
-            wanted = FORCINGS + (TARGETS_NONNEG if check_targets else [])
+        with xr.open_dataset(path, chunks=CHUNKS) as ds:  # lazy; chunks aligned with storage
+            wanted = FORCINGS + (TARGETS if check_targets else [])
             for var in [v for v in wanted if v in ds]:
                 da = ds[var]
                 # All four reductions are computed in a single pass over the data.
