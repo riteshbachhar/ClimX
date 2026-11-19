@@ -11,7 +11,8 @@ from .. import metrics as M
 from .. import indices_xclim as I
 from ..visualization import utils as V
 
-from src.data_preprocessing.preprocessing_utils import compute_climatology
+from src.data_preprocessing.preprocessing_utils import compute_climatology, log_transform
+from src.data_preprocessing.preprocessing import LOG_TRANSFORM_INFO
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -53,6 +54,14 @@ class ClimatologyBaseline(Emulator):
 
         baseline_preds = xr.merge(interpolated_vars)
         baseline_preds = baseline_preds.sel(time=slice("2015-01-01 12:00:00", "2100-12-30 12:00:00"))
+
+        # The climatology was computed after the log transform, so pr and huss are in log
+        # units here. Convert them back to physical units (10**x - eps), as Emulator.evaluate
+        # does for other models; this class's evaluate() skips that step.
+        for var in ("pr", "huss"):
+            if var in baseline_preds:
+                eps = LOG_TRANSFORM_INFO[var]["epsilon"]
+                baseline_preds = log_transform(baseline_preds, [var], epsilon=eps, reverse=True)
 
         return baseline_preds
 
