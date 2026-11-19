@@ -10,7 +10,7 @@ from pathlib import Path
 import xarray as xr
 
 from ..visualization import utils as V
-from ..data_preprocessing.preprocessing_utils import scale_variables, log_transform, stationarize
+from ..data_preprocessing.preprocessing_utils import scale_variables, log_transform, stationarize, monthly_climatology_to_daily
 from .. import metrics as M
 from .. import indices_xclim as I
 
@@ -71,6 +71,9 @@ class Emulator(ABC):
                 if not climatology_path.exists():
                     raise FileNotFoundError(f"Climatology file not found at {climatology_path}")
                 climatology = xr.open_dataset(climatology_path)
+                if stationarization_mode == 'monthly':
+                    # convert monthly climatology to daily climatology (reversal of what preprocessing did)
+                    climatology = monthly_climatology_to_daily(climatology, y_pred_anomalies.time)
                 y_pred_log_transformed = stationarize(
                     y_pred_anomalies, climatology, reverse=True, stationarization_mode=stationarization_mode
                 )
